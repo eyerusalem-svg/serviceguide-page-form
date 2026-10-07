@@ -491,7 +491,7 @@
             <label class="etlw-option-card"><input type="radio" name="weeklyFrequency" value="4 Days/Week" /><b>4 times / week</b></label>
             <label class="etlw-option-card"><input type="radio" name="weeklyFrequency" value="5 Days/Week" /><b>5 times / week</b></label>
             <label class="etlw-option-card"><input type="radio" name="weeklyFrequency" value="6 Days/Week" /><b>6 times / week</b></label>
-            <label class="etlw-option-card"><input type="radio" name="weeklyFrequency" value="Weekend" /><b>Weekend</b></label>
+            <label class="etlw-option-card" hidden style="display: none !important"><input type="radio" name="weeklyFrequency" value="Weekend" disabled /><b>Weekend</b></label>
           </div>
           <button type="button" class="etlw-continue" data-next disabled>Continue</button>
         </div>
@@ -500,7 +500,9 @@
         <div class="etlw-step" data-step="6">
           <h3>What time of day works best?</h3>
           <div class="etlw-option-list">
-            <label class="etlw-option-card"><input type="radio" name="dailyServiceDuration" value="Full Day" /><b>Full Day</b><span id="etlFullDayHours">7:00 AM – 4:00 PM</span></label>
+            <label class="etlw-option-card"><input type="radio" name="dailyServiceDuration" value="Full Day" data-start="7:00 AM" data-end="4:00 PM" /><b>Full Day</b><span>7:00 AM – 4:00 PM</span></label>
+<label class="etlw-option-card"><input type="radio" name="dailyServiceDuration" value="Full Day" data-start="8:00 AM" data-end="5:00 PM" /><b>Full Day</b><span>8:00 AM – 5:00 PM</span></label>
+<label class="etlw-option-card"><input type="radio" name="dailyServiceDuration" value="Full Day" data-start="9:00 AM" data-end="6:00 PM" /><b>Full Day</b><span>9:00 AM – 6:00 PM</span></label>
             <label class="etlw-option-card"><input type="radio" name="dailyServiceDuration" value="Half Day - Morning" /><b>Morning</b><span>7:00 AM – 12:00 PM</span></label>
             <label class="etlw-option-card"><input type="radio" name="dailyServiceDuration" value="Half Day - Afternoon" /><b>Afternoon</b><span>1:00 PM – 5:00 PM</span></label>
           </div>
@@ -540,14 +542,14 @@
 
         <!-- STEP 7 — Location -->
         <div class="etlw-step" data-step="7">
-          <h3>Where in Addis do you live?</h3>
+          <h3 id="etlLocationTitle">Where in Addis do you live?</h3>
           <div class="etl-form-group">
             <label for="etlLocation">Your area</label>
             <input type="text" id="etlLocation" name="location" placeholder="e.g. Bole, Sarbet, CMC..." autocomplete="address-level2" required />
           </div>
           <div class="etl-form-group">
             <label for="etlLandmark">Nearest known landmark</label>
-            <input type="text" id="etlLandmark" name="landmark" placeholder="e.g. near Friendship Building..." />
+            <input type="text" id="etlLandmark" name="landmark" placeholder="e.g. near Friendship Building..." required />
           </div>
           <div class="etlw-note">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -593,6 +595,128 @@
           </div>
           <button type="submit" class="etlw-continue" id="etlSubmitBtn">Get Your Etalem</button>
         </div>
+                <!-- STEP 12 — Event date -->
+        <div class="etlw-step" data-step="12">
+          <h3>When do you need the catering?</h3>
+          <p class="etlw-subtitle">We currently support requests up to 7 days out.</p>
+          <div class="etl-form-group">
+            <label for="etlCateringDate">Event date</label>
+            <input type="date" id="etlCateringDate" />
+          </div>
+          <div class="etlw-note"><span>Need more than one day? Add the other dates in the notes at the end.</span></div>
+          <button type="button" class="etlw-continue" data-next>Continue</button>
+        </div>
+
+        <!-- STEP 13 — Part of the day -->
+        <div class="etlw-step" data-step="13">
+          <h3>Which part of the day do you need?</h3>
+          <p class="etlw-subtitle">Choose the suitable time for your catering service.</p>
+          <div class="etlw-option-list" id="etlCateringPeriodList">
+            <label class="etlw-option-card"><input type="radio" name="dayPeriod" value="Full Day" /><b>Full Day</b><span>7:00 AM – 5:00 PM</span></label>
+            <label class="etlw-option-card"><input type="radio" name="dayPeriod" value="Morning" /><b>Morning</b><span>7:00 AM – 1:00 PM</span></label>
+            <label class="etlw-option-card"><input type="radio" name="dayPeriod" value="Afternoon" /><b>Afternoon</b><span>11:00 AM – 5:00 PM</span></label>
+            <label class="etlw-option-card"><input type="radio" name="dayPeriod" value="Evening" /><b>Evening</b><span>4:00 PM – midnight</span></label>
+          </div>
+          <button type="button" class="etlw-continue" data-next>Continue</button>
+        </div>
+
+        <!-- STEP 14 — Session -->
+        <div class="etlw-step" data-step="14">
+          <h3 id="etlCateringSessionTitle">Which session do you need?</h3>
+          <p class="etlw-subtitle">Choose the session that suits your catering service best.</p>
+          <div class="etlw-option-list" id="etlCateringSessionList">
+            <label class="etlw-option-card" data-period="Morning"><input type="radio" name="sessionType" value="Breakfast" /><b>Breakfast</b><span>7:00 – 10:00 AM</span></label>
+            <label class="etlw-option-card" data-period="Morning"><input type="radio" name="sessionType" value="Tea Break" /><b>Tea Break</b><span>9:00 – 11:00 AM</span></label>
+            <label class="etlw-option-card" data-period="Morning"><input type="radio" name="sessionType" value="Brunch" /><b>Brunch</b><span>10:00 AM – 1:00 PM</span></label>
+            <label class="etlw-option-card" data-period="Afternoon"><input type="radio" name="sessionType" value="Lunch" /><b>Lunch</b><span>11:00 AM – 3:00 PM</span></label>
+            <label class="etlw-option-card" data-period="Afternoon"><input type="radio" name="sessionType" value="Afternoon Tea" /><b>Afternoon Tea</b><span>3:00 – 5:00 PM</span></label>
+            <label class="etlw-option-card" data-period="Evening"><input type="radio" name="sessionType" value="Early Cocktail" /><b>Early Cocktail</b><span>4:00 – 7:00 PM</span></label>
+            <label class="etlw-option-card" data-period="Evening"><input type="radio" name="sessionType" value="Dinner" /><b>Dinner</b><span>6:00 – 9:00 PM</span></label>
+            <label class="etlw-option-card" data-period="Evening"><input type="radio" name="sessionType" value="Evening Reception" /><b>Evening Reception</b><span>6:00 – 10:00 PM</span></label>
+            <label class="etlw-option-card" data-period="Evening"><input type="radio" name="sessionType" value="Late Night" /><b>Late Night</b><span>9:00 PM – midnight</span></label>
+          </div>
+          <button type="button" class="etlw-continue" data-next>Continue</button>
+        </div>
+
+        <!-- STEP 15 — Headcount -->
+        <div class="etlw-step" data-step="15">
+          <h3>How many people are you catering for?</h3>
+          <p class="etlw-subtitle">If the number differs by session, tell us in the notes at the end.</p>
+          <div class="etl-form-group">
+            <div class="etlw-stepper">
+              <button type="button" class="etlw-stepper-btn" data-step-target="etlCateringGuests" data-step-dir="-1">&minus;</button>
+              <input type="number" id="etlCateringGuests" name="cateringGuests" min="1" value="10" inputmode="numeric" />
+              <button type="button" class="etlw-stepper-btn" data-step-target="etlCateringGuests" data-step-dir="1">+</button>
+            </div>
+          </div>
+          <button type="button" class="etlw-continue" data-next>Continue</button>
+        </div>
+
+        <!-- STEP 16 — What's included -->
+        <div class="etlw-step" data-step="16">
+          <h3>What would you like included?</h3>
+          <p class="etlw-subtitle">Select all that apply.</p>
+          <div class="etl-form-group">
+            <div class="etl-checkbox-group" id="etlCateringIncludesGroup">
+              <label class="etl-checkbox-option"><input type="checkbox" name="cateringMenuSelection" value="Cocktail/Finger Foods" /> Cocktail/Finger Foods</label>
+              <label class="etl-checkbox-option"><input type="checkbox" name="cateringMenuSelection" value="Full-Course Meal" /> Full-Course Meal</label>
+              <label class="etl-checkbox-option"><input type="checkbox" name="cateringMenuSelection" value="Water" /> Water</label>
+              <label class="etl-checkbox-option"><input type="checkbox" name="cateringMenuSelection" value="Tea &amp; Coffee" /> Tea &amp; Coffee</label>
+              <label class="etl-checkbox-option"><input type="checkbox" name="cateringMenuSelection" value="Soft Drinks" /> Soft Drinks</label>
+              <label class="etl-checkbox-option"><input type="checkbox" name="cateringMenuSelection" value="Fruits" /> Fruits</label>
+              <label class="etl-checkbox-option"><input type="checkbox" name="cateringMenuSelection" value="Cakes" /> Cakes</label>
+            </div>
+          </div>
+          <button type="button" class="etlw-continue" data-next>Continue</button>
+        </div>
+
+        <!-- STEP 17 — Menu type -->
+        <div class="etlw-step" data-step="17">
+          <h3>What type of menu are you looking for?</h3>
+          <p class="etlw-subtitle">Select all that apply.</p>
+          <div class="etl-form-group">
+            <div class="etl-checkbox-group" id="etlCateringMenuTypeGroup">
+              <label class="etl-checkbox-option"><input type="checkbox" name="cuisineType" value="Western" /> Western</label>
+              <label class="etl-checkbox-option"><input type="checkbox" name="cuisineType" value="Local" /> Local</label>
+              <label class="etl-checkbox-option"><input type="checkbox" name="cuisineType" value="Vegan" /> Vegan</label>
+              <label class="etl-checkbox-option"><input type="checkbox" name="cuisineType" value="Non-Fasting" /> Non-Fasting</label>
+            </div>
+          </div>
+          <button type="button" class="etlw-continue" data-next>Continue</button>
+        </div>
+
+        <!-- STEP 18 — Menu details -->
+        <div class="etlw-step" data-step="18">
+          <h3>Tell us more about what you'd like on the menu.</h3>
+          <p class="etlw-subtitle">Specific dishes, cuisines, dietary needs, anything you have in mind.</p>
+          <div class="etl-form-group">
+            <textarea id="etlCateringMenu" name="menuDetails" maxlength="500" placeholder="e.g. Kitfo, Biryani, vegan options for 3 guests, no shellfish" aria-label="Menu details"></textarea>
+            <span class="etl-char-count" id="etlCateringMenuCount">0/500 characters used</span>
+          </div>
+          <button type="button" class="etlw-continue" data-next>Continue</button>
+        </div>
+
+        <!-- STEP 19 — Budget per plate -->
+        <div class="etlw-step" data-step="19">
+          <h3>What's your budget per person (per plate) in ETB?</h3>
+          <div class="etl-form-group">
+            <div class="etlw-phone-row">
+              <span class="etlw-phone-prefix">ETB</span>
+              <input type="number" id="etlCateringBudget" name="employerBudget" min="1" inputmode="numeric" placeholder="e.g. 600" aria-label="Budget per person in ETB" />
+            </div>
+          </div>
+          <button type="button" class="etlw-continue" data-next>Continue</button>
+        </div>
+
+        <!-- STEP 20 — Preferences (cooking, cleaning, babysitting) -->
+        <div class="etlw-step" data-step="20">
+          <h3 id="etlPreferencesTitle">Tell us your preferences.</h3>
+          <div class="etl-form-group">
+            <textarea id="etlPreferences" name="preferences" maxlength="500" placeholder="" aria-labelledby="etlPreferencesTitle"></textarea>
+            <span class="etl-char-count" id="etlPreferencesCount">0/500 characters used</span>
+          </div>
+          <button type="button" class="etlw-continue" data-next>Continue</button>
+        </div>
       </form>
     </div>
     <div id="etlFormSuccess" class="etlw-confirm" style="display: none">
@@ -603,7 +727,7 @@
         </svg>
       </div>
       <h3>You're all set!</h3>
-      <p>Our team is putting together your personalized quote and will send it to you shortly.</p>
+      <p id="etlConfirmText">Our team is putting together your personalized quote and will send it to you shortly.</p>
       <span class="etlw-confirm-pill"
         ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="9" />
