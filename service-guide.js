@@ -221,472 +221,389 @@
     if (!isActive) content.classList.add("active");
   }
 
-  /* ---------------- Etalem journey wizard ---------------- */
+    /* ---------------- Etalem journey wizard ---------------- */
   (function () {
     var WEBHOOK_URL = "https://goodayon.app.n8n.cloud/webhook/etalem-service-request";
+    var $ = function (id) { return document.getElementById(id); };
+    var qa = function (s) { return document.querySelectorAll(s); };
 
-    var taskField = document.getElementById("etlTask");
-    var charCount = document.getElementById("etlCharCount");
-    var maxLength = (taskField && parseInt(taskField.getAttribute("maxlength"), 10)) || 500;
-    if (taskField && charCount) {
-      taskField.addEventListener("input", function () {
-        charCount.textContent = taskField.value.length + "/" + maxLength + " characters used";
+    /* ---- Character counters ---- */
+    function bindCharCounter(tid, cid) {
+      var f = $(tid), c = $(cid);
+      if (!f || !c) return;
+      var max = parseInt(f.getAttribute("maxlength"), 10) || 500;
+      f.addEventListener("input", function () {
+        c.textContent = f.value.length + "/" + max + " characters used";
       });
     }
+    var taskField = $("etlTask"), charCount = $("etlCharCount");
+    var maxLength = (taskField && parseInt(taskField.getAttribute("maxlength"), 10)) || 500;
+    bindCharCounter("etlTask", "etlCharCount");
+    bindCharCounter("etlCateringMenu", "etlCateringMenuCount");
+    bindCharCounter("etlPreferences", "etlPreferencesCount");
 
-    var modal = document.getElementById("request");
-    if (modal && modal.parentNode !== document.body) {
-      document.body.appendChild(modal);
-    }
+    var modal = $("request");
+    if (modal && modal.parentNode !== document.body) document.body.appendChild(modal);
+    var form = $("etlRequestForm"), formWrap = $("etlFormWrap"),
+      formSuccess = $("etlFormSuccess"), formError = $("etlFormError");
 
-    var form = document.getElementById("etlRequestForm");
-    var formWrap = document.getElementById("etlFormWrap");
-    var formSuccess = document.getElementById("etlFormSuccess");
-    var formError = document.getElementById("etlFormError");
-
+    /* ---- Service copy ---- */
     var SERVICE_META = {
-      cooking: {
-        label: "Cooking",
-        description: "Just a few quick questions about your cooking needs — it takes less than a minute.",
-        branchTitle: "Tell us about your cooking needs.",
-      },
-      cleaning: {
-        label: "Cleaning",
-        description: "Just a few quick questions about your cleaning needs — it takes less than a minute.",
-        branchTitle: "Tell us about your cleaning needs.",
-      },
-      nanny: {
-        label: "Babysitting",
-        description: "Just a few quick questions about your child's needs — it takes less than a minute.",
-        branchTitle: "Tell us about your little one(s).",
-      },
-      catering: {
-        label: "Catering",
-        description: "Just a couple of quick questions about your event — it takes less than a minute.",
-        branchTitle: "",
-      },
+      cooking: { label: "Cooking", description: "Just a few quick questions about your cooking needs — it takes less than a minute.", branchTitle: "Tell us about your cooking needs." },
+      cleaning: { label: "Cleaning", description: "Just a few quick questions about your cleaning needs — it takes less than a minute.", branchTitle: "Tell us about your cleaning needs." },
+      nanny: { label: "Babysitting", description: "Just a few quick questions about your child's needs — it takes less than a minute.", branchTitle: "Tell us about your little one(s)." },
+      catering: { label: "Catering", description: "Just a couple of quick questions about your event — it takes less than a minute.", branchTitle: "" },
     };
-
-    var serviceRadios = document.querySelectorAll('input[name="service"]');
     var branchSections = {
-      cooking: document.getElementById("etlCookingSection"),
-      cleaning: document.getElementById("etlCleaningSection"),
-      nanny: document.getElementById("etlBabysittingSection"),
+      cooking: $("etlCookingSection"),
+      cleaning: $("etlCleaningSection"),
+      nanny: $("etlBabysittingSection"),
     };
-    var branchTitleEl = document.getElementById("etlBranchTitle");
-    var transitionPillEl = document.getElementById("etlTransitionPill");
-    var transitionTextEl = document.getElementById("etlTransitionText");
+    var branchTitleEl = $("etlBranchTitle"), transitionPillEl = $("etlTransitionPill"), transitionTextEl = $("etlTransitionText");
 
     function getSelectedService() {
-      var checked = document.querySelector('input[name="service"]:checked');
-      return checked ? checked.value : "";
+      var c = document.querySelector('input[name="service"]:checked');
+      return c ? c.value : "";
+    }
+    function checkedValues(name) {
+      return Array.prototype.map.call(qa('input[name="' + name + '"]:checked'), function (el) { return el.value; });
+    }
+    function checkedValue(name) {
+      var el = document.querySelector('input[name="' + name + '"]:checked');
+      return el ? el.value : "";
+    }
+    function numOrUndef(id) {
+      var v = $(id).value;
+      return v === "" ? undefined : Number(v);
     }
 
+    /* ---- Cleaning-only frequency option + disabled half-day slots ---- */
     function updateCleaningFrequencyUI() {
-      var selectedService = getSelectedService();
-      var isCleaning = selectedService === "cleaning";
-      var deepOption = document.querySelector('input[name="weeklyFrequency"][value="Deep Cleaning (One-Time)"]');
-      var oneTimeOption = document.querySelector('input[name="weeklyFrequency"][value="Task-based(Once)"]');
-      var deepCard = deepOption && deepOption.closest(".etlw-option-card");
-      var oneTimeCard = oneTimeOption && oneTimeOption.closest(".etlw-option-card");
+      var svc = getSelectedService(), isCleaning = svc === "cleaning";
+      var deep = document.querySelector('input[name="weeklyFrequency"][value="Deep Cleaning (One-Time)"]');
+      var once = document.querySelector('input[name="weeklyFrequency"][value="Task-based(Once)"]');
+      var deepCard = deep && deep.closest(".etlw-option-card"), onceCard = once && once.closest(".etlw-option-card");
       if (deepCard) deepCard.style.display = isCleaning ? "" : "none";
-      if (oneTimeCard) oneTimeCard.style.display = "";
-      if (!isCleaning && deepOption) deepOption.checked = false;
-
-      var selectedFrequency = document.querySelector('input[name="weeklyFrequency"]:checked');
-      var selectedFrequencyValue = selectedFrequency ? selectedFrequency.value : "";
-      var isOneTimeSelection = selectedFrequencyValue === "Task-based(Once)" || selectedFrequencyValue === "Deep Cleaning (One-Time)";
-      var isLowFrequencySelection = selectedFrequencyValue === "1 Day/Week" || selectedFrequencyValue === "2 Days/Week" || selectedFrequencyValue === "3 Days/Week";
-      var isNannyLowFrequencySelection = isLowFrequencySelection || selectedFrequencyValue === "3 Days/Week";
-      var disableMorningAfternoon = ((selectedService === "cleaning" || selectedService === "cooking") && isOneTimeSelection) || ((selectedService === "cleaning" || selectedService === "cooking") && isLowFrequencySelection) || (selectedService === "nanny" && isNannyLowFrequencySelection);
-      var morningOption = document.querySelector('input[name="dailyServiceDuration"][value="Half Day - Morning"]');
-      var afternoonOption = document.querySelector('input[name="dailyServiceDuration"][value="Half Day - Afternoon"]');
-      [morningOption, afternoonOption].forEach(function (option) {
-        if (!option) return;
-        var optionCard = option.closest(".etlw-option-card");
-        option.disabled = disableMorningAfternoon;
-        if (optionCard) optionCard.style.opacity = disableMorningAfternoon ? "0.45" : "";
-        if (optionCard) optionCard.style.cursor = disableMorningAfternoon ? "not-allowed" : "";
-        if (disableMorningAfternoon && option.checked) option.checked = false;
-      });
-    }
-
-    function updateTimeSlotStatusOnFrequencyChange() {
-      var frequencyInputs = document.querySelectorAll('input[name="weeklyFrequency"]');
-      frequencyInputs.forEach(function (input) {
-        input.addEventListener("change", function () {
-          updateCleaningFrequencyUI();
-        });
-      });
-    }
-
-    function clearSectionFields(sectionEl) {
-      if (!sectionEl) return;
-      sectionEl.querySelectorAll("input, select, textarea").forEach(function (el) {
-        if (el.type === "checkbox" || el.type === "radio") el.checked = false;
-        else el.value = "";
-      });
-    }
-
-    function updateApartmentVisibility(houseGroupName, groupEl, selectEl) {
-      var checked = document.querySelector('input[name="' + houseGroupName + '"]:checked');
-      var isApartment = checked && String(checked.value).toLowerCase() === "apartment";
-      if (groupEl) groupEl.style.display = isApartment ? "" : "none";
-      if (selectEl) {
-        selectEl.required = !!isApartment;
-        if (!isApartment) selectEl.value = "";
-      }
-    }
-
-    var apartmentSizeGroup = document.getElementById("etlApartmentSizeGroup");
-    var apartmentSizeSelect = document.getElementById("etlApartmentSize");
-
-    document.addEventListener("change", function (e) {
-      if (e.target.matches('input[name="houseType"]')) {
-        updateApartmentVisibility("houseType", apartmentSizeGroup, apartmentSizeSelect);
-      }
-    });
-
-    // .etlw-segmented relies on native <label> click delegation to check its
-    // zero-size input (same visually-hidden-radio pattern as .etlw-service-card
-    // and .etlw-option-card, which both also set .checked explicitly on click
-    // instead of relying on delegation alone) - add the same explicit handler
-    // here so a click always registers even if native delegation doesn't fire.
-    document.querySelectorAll(".etlw-segmented label").forEach(function (label) {
-      var input = label.querySelector('input[type="radio"]');
-      if (!input) return;
-      label.addEventListener("click", function () {
-        input.checked = true;
-        input.dispatchEvent(new Event("change", { bubbles: true }));
-      });
-    });
-
-    function updateServiceDependentUI() {
-      var selected = getSelectedService();
-      var meta = SERVICE_META[selected];
-
-      Object.keys(branchSections).forEach(function (key) {
-        var el = branchSections[key];
-        if (!el) return;
-        if (key === selected) el.style.display = "";
-        else {
-          el.style.display = "none";
-          clearSectionFields(el);
+      if (onceCard) onceCard.style.display = "";
+      if (!isCleaning && deep) deep.checked = false;
+      var f = checkedValue("weeklyFrequency");
+      var oneTime = f === "Task-based(Once)" || f === "Deep Cleaning (One-Time)";
+      var low = f === "1 Day/Week" || f === "2 Days/Week" || f === "3 Days/Week";
+      var off = ((svc === "cleaning" || svc === "cooking") && (oneTime || low)) || (svc === "nanny" && low);
+      ["Half Day - Morning", "Half Day - Afternoon"].forEach(function (v) {
+        var o = document.querySelector('input[name="dailyServiceDuration"][value="' + v + '"]');
+        if (!o) return;
+        var card = o.closest(".etlw-option-card");
+        o.disabled = off;
+        if (card) {
+          card.style.opacity = off ? "0.45" : "";
+          card.style.cursor = off ? "not-allowed" : "";
         }
+        if (off && o.checked) o.checked = false;
+      });
+    }
+    qa('input[name="weeklyFrequency"]').forEach(function (i) {
+      i.addEventListener("change", updateCleaningFrequencyUI);
+    });
+
+    function clearSectionFields(el) {
+      if (!el) return;
+      el.querySelectorAll("input, select, textarea").forEach(function (x) {
+        if (x.type === "checkbox" || x.type === "radio") x.checked = false;
+        else x.value = "";
+      });
+    }
+    function updateApartmentVisibility(name, groupEl, selectEl) {
+      var c = document.querySelector('input[name="' + name + '"]:checked');
+      var isApt = c && String(c.value).toLowerCase() === "apartment";
+      if (groupEl) groupEl.style.display = isApt ? "" : "none";
+      if (selectEl) {
+        selectEl.required = !!isApt;
+        if (!isApt) selectEl.value = "";
+      }
+    }
+    var apartmentSizeGroup = $("etlApartmentSizeGroup"), apartmentSizeSelect = $("etlApartmentSize");
+    document.addEventListener("change", function (e) {
+      if (e.target.matches('input[name="houseType"]')) updateApartmentVisibility("houseType", apartmentSizeGroup, apartmentSizeSelect);
+    });
+
+    /* ---- Everything that depends on the chosen service ---- */
+    function updateServiceDependentUI() {
+      var selected = getSelectedService(), meta = SERVICE_META[selected];
+      Object.keys(branchSections).forEach(function (k) {
+        var el = branchSections[k];
+        if (!el) return;
+        if (k === selected) el.style.display = "";
+        else { el.style.display = "none"; clearSectionFields(el); }
       });
       updateApartmentVisibility("houseType", apartmentSizeGroup, apartmentSizeSelect);
       updateCleaningFrequencyUI();
-
-      var fullDayHoursEl = document.getElementById("etlFullDayHours");
-      if (fullDayHoursEl) fullDayHoursEl.textContent = selected === "nanny" ? "7:00 AM – 6:00 PM" : "7:00 AM – 4:00 PM";
-
       if (transitionPillEl) transitionPillEl.textContent = meta ? meta.label + " selected" : "";
       if (transitionTextEl) transitionTextEl.textContent = meta ? meta.description : "";
       if (branchTitleEl) branchTitleEl.textContent = meta ? meta.branchTitle : "";
+      var isCatering = selected === "catering";
+      if (isCatering) updateCateringDateLimits();
+      applyCateringWording(isCatering);
+      applyPreferencesCopy(selected);
     }
-
-    serviceRadios.forEach(function (r) {
+    qa('input[name="service"]').forEach(function (r) {
       r.addEventListener("change", updateServiceDependentUI);
-
-      var card = r.closest(".etlw-service-card");
-      if (card) {
-        card.addEventListener("click", function () {
-          r.checked = true;
-          updateServiceDependentUI();
-          updateContinueState(stepEls[2]);
-        });
-      }
     });
 
-    updateTimeSlotStatusOnFrequencyChange();
-
-    // ---- Preferred service date - Weekend constrains picker to Saturdays; Sunday is derived ----
+    /* ---- Preferred date / weekdays ---- */
     var MIN_LEAD_DAYS = 3;
     var WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-    var serviceDateInput = document.getElementById("etlServiceDate");
-    var weekendDatesNote = document.getElementById("etlWeekendDatesNote");
-    var weekendDatesText = document.getElementById("etlWeekendDatesText");
-    var preferredDaysLabel = document.getElementById("etlPreferredDaysLabel");
-    var preferredWeekdaysGroupWrap = document.getElementById("etlPreferredWeekdaysGroupWrap");
-    var preferredWeekdaysCountText = document.getElementById("etlPreferredWeekdaysCountText");
     var WEEKDAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    var serviceDateInput = $("etlServiceDate"), weekendDatesNote = $("etlWeekendDatesNote"), weekendDatesText = $("etlWeekendDatesText");
+    var preferredDaysLabel = $("etlPreferredDaysLabel"), preferredWeekdaysGroupWrap = $("etlPreferredWeekdaysGroupWrap"), preferredWeekdaysCountText = $("etlPreferredWeekdaysCountText");
 
-    function requiredWeekdayCount(freqValue) {
-      var match = /^(\d) Days?\/Week$/.exec(freqValue || "");
-      return match ? parseInt(match[1], 10) : null;
+    function requiredWeekdayCount(v) {
+      var m = /^(\d) Days?\/Week$/.exec(v || "");
+      return m ? parseInt(m[1], 10) : null;
     }
-
-    function addDays(date, days) {
-      var d = new Date(date);
-      d.setDate(d.getDate() + days);
-      return d;
+    function addDays(date, n) { var d = new Date(date); d.setDate(d.getDate() + n); return d; }
+    function toDateInputValue(d) {
+      return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
     }
-
-    function toDateInputValue(date) {
-      var y = date.getFullYear();
-      var m = String(date.getMonth() + 1).padStart(2, "0");
-      var d = String(date.getDate()).padStart(2, "0");
-      return y + "-" + m + "-" + d;
+    function parseDateInputValue(v) { var p = v.split("-").map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+    function formatDateLabel(d) {
+      return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
     }
-
-    function parseDateInputValue(value) {
-      var parts = value.split("-").map(Number);
-      return new Date(parts[0], parts[1] - 1, parts[2]);
-    }
-
-    function formatDateLabel(date) {
-      return date.toLocaleDateString("en-US", {
-        weekday: "long",
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      });
-    }
-
-    function minSelectableDate() {
-      return addDays(new Date(), MIN_LEAD_DAYS);
-    }
-
+    function minSelectableDate() { return addDays(new Date(), MIN_LEAD_DAYS); }
     function firstSaturdayOnOrAfter(from) {
       var d = new Date(from);
       while (d.getDay() !== 6) d = addDays(d, 1);
       return d;
     }
-
     function isPreferredDateValid() {
       if (!serviceDateInput || !serviceDateInput.value) return false;
-      if (checkedValue("weeklyFrequency") === "Weekend") {
-        return parseDateInputValue(serviceDateInput.value).getDay() === 6 && serviceDateInput.value >= serviceDateInput.min;
-      }
+      if (checkedValue("weeklyFrequency") === "Weekend") return parseDateInputValue(serviceDateInput.value).getDay() === 6 && serviceDateInput.value >= serviceDateInput.min;
       return serviceDateInput.value >= toDateInputValue(minSelectableDate());
     }
-
     function isPreferredScheduleValid() {
       if (!isPreferredDateValid()) return false;
-      var required = requiredWeekdayCount(checkedValue("weeklyFrequency"));
-      if (required === null) return true;
-      return checkedValues("preferredWeekday").length === required;
+      var r = requiredWeekdayCount(checkedValue("weeklyFrequency"));
+      return r === null ? true : checkedValues("preferredWeekday").length === r;
     }
-
     function updateWeekendConfirmation() {
       if (!weekendDatesNote) return;
       var isWeekend = checkedValue("weeklyFrequency") === "Weekend";
-      if (!isWeekend || !serviceDateInput || !serviceDateInput.value) {
-        weekendDatesNote.style.display = "none";
-        return;
-      }
-      var saturday = parseDateInputValue(serviceDateInput.value);
+      if (!isWeekend || !serviceDateInput || !serviceDateInput.value) { weekendDatesNote.style.display = "none"; return; }
+      var sat = parseDateInputValue(serviceDateInput.value);
       weekendDatesNote.style.display = "flex";
-      if (weekendDatesText) weekendDatesText.textContent = formatDateLabel(saturday) + " – " + formatDateLabel(addDays(saturday, 1));
+      if (weekendDatesText) weekendDatesText.textContent = formatDateLabel(sat) + " – " + formatDateLabel(addDays(sat, 1));
     }
-
     function updatePreferredDaysUI() {
       var isWeekend = checkedValue("weeklyFrequency") === "Weekend";
       if (serviceDateInput) {
         if (isWeekend) {
-          var minSaturday = firstSaturdayOnOrAfter(minSelectableDate());
-          serviceDateInput.min = toDateInputValue(minSaturday);
+          serviceDateInput.min = toDateInputValue(firstSaturdayOnOrAfter(minSelectableDate()));
           serviceDateInput.step = 7;
-          if (serviceDateInput.value && !isPreferredDateValid()) {
-            serviceDateInput.value = "";
-          }
+          if (serviceDateInput.value && !isPreferredDateValid()) serviceDateInput.value = "";
         } else {
           serviceDateInput.removeAttribute("step");
           serviceDateInput.min = toDateInputValue(minSelectableDate());
-          if (serviceDateInput.value && serviceDateInput.value < serviceDateInput.min) {
-            serviceDateInput.value = "";
-          }
+          if (serviceDateInput.value && serviceDateInput.value < serviceDateInput.min) serviceDateInput.value = "";
         }
       }
       if (preferredDaysLabel) preferredDaysLabel.textContent = isWeekend ? "Preferred weekend (pick a Saturday)" : "Preferred service date";
       updateWeekendConfirmation();
-
-      var requiredDays = requiredWeekdayCount(checkedValue("weeklyFrequency"));
-      if (preferredWeekdaysGroupWrap) preferredWeekdaysGroupWrap.style.display = requiredDays !== null ? "" : "none";
-      document.querySelectorAll('input[name="preferredWeekday"]').forEach(function (box) {
-        box.checked = false;
-      });
+      var n = requiredWeekdayCount(checkedValue("weeklyFrequency"));
+      if (preferredWeekdaysGroupWrap) preferredWeekdaysGroupWrap.style.display = n !== null ? "" : "none";
+      qa('input[name="preferredWeekday"]').forEach(function (b) { b.checked = false; });
       enforcePreferredWeekdayLimit();
-
       updateContinueState(stepEls[currentStep]);
     }
-
     function enforcePreferredWeekdayLimit() {
-      var required = requiredWeekdayCount(checkedValue("weeklyFrequency"));
-      var boxes = document.querySelectorAll('input[name="preferredWeekday"]');
-      var checkedCount = document.querySelectorAll('input[name="preferredWeekday"]:checked').length;
-      boxes.forEach(function (box) {
-        if (!box.checked) box.disabled = required !== null && checkedCount >= required;
+      var req = requiredWeekdayCount(checkedValue("weeklyFrequency"));
+      var count = qa('input[name="preferredWeekday"]:checked').length;
+      qa('input[name="preferredWeekday"]').forEach(function (b) {
+        if (!b.checked) b.disabled = req !== null && count >= req;
       });
-      if (preferredWeekdaysCountText) preferredWeekdaysCountText.textContent = required !== null ? checkedCount + " of " + required + " selected" : "";
+      if (preferredWeekdaysCountText) preferredWeekdaysCountText.textContent = req !== null ? count + " of " + req + " selected" : "";
       updateContinueState(stepEls[currentStep]);
     }
-
-    document.querySelectorAll('input[name="preferredWeekday"]').forEach(function (box) {
-      box.addEventListener("change", enforcePreferredWeekdayLimit);
+    qa('input[name="preferredWeekday"]').forEach(function (b) {
+      b.addEventListener("change", enforcePreferredWeekdayLimit);
     });
-
     if (serviceDateInput) {
       serviceDateInput.addEventListener("change", function () {
         updateWeekendConfirmation();
         if (serviceDateInput.value && !isPreferredDateValid()) {
           showFormError(checkedValue("weeklyFrequency") === "Weekend" ? "Weekend service is only available on Saturdays - please pick a Saturday." : "Please select a valid service date.", serviceDateInput);
-        } else {
-          hideFormError();
-        }
+        } else hideFormError();
       });
     }
-
-    document.querySelectorAll('input[name="weeklyFrequency"]').forEach(function (r) {
+    qa('input[name="weeklyFrequency"]').forEach(function (r) {
       r.addEventListener("change", updatePreferredDaysUI);
     });
 
     function buildWorkDays() {
-      var duration = checkedValue("dailyServiceDuration") || "Full Day";
-      var freq = checkedValue("weeklyFrequency");
-      if (freq === "Weekend") {
-        return ["Saturday " + duration, "Sunday " + duration];
-      }
+      var dur = checkedValue("dailyServiceDuration") || "Full Day", freq = checkedValue("weeklyFrequency");
+      if (freq === "Weekend") return ["Saturday " + dur, "Sunday " + dur];
       if (requiredWeekdayCount(freq) !== null) {
-        return checkedValues("preferredWeekday")
-          .slice()
-          .sort(function (a, b) {
-            return WEEKDAY_ORDER.indexOf(a) - WEEKDAY_ORDER.indexOf(b);
-          })
-          .map(function (day) {
-            return day + " " + duration;
-          });
+        return checkedValues("preferredWeekday").slice()
+          .sort(function (a, b) { return WEEKDAY_ORDER.indexOf(a) - WEEKDAY_ORDER.indexOf(b); })
+          .map(function (d) { return d + " " + dur; });
       }
-      if (serviceDateInput && serviceDateInput.value) {
-        var dayName = WEEKDAY_NAMES[parseDateInputValue(serviceDateInput.value).getDay()];
-        return [dayName + " " + duration];
-      }
+      if (serviceDateInput && serviceDateInput.value) return [WEEKDAY_NAMES[parseDateInputValue(serviceDateInput.value).getDay()] + " " + dur];
       return [];
     }
-
     function buildPreferredServiceDateLabel() {
       if (!serviceDateInput || !serviceDateInput.value) return "";
-      var picked = parseDateInputValue(serviceDateInput.value);
-      if (checkedValue("weeklyFrequency") === "Weekend") {
-        return formatDateLabel(picked) + " – " + formatDateLabel(addDays(picked, 1));
-      }
-      return formatDateLabel(picked);
+      var p = parseDateInputValue(serviceDateInput.value);
+      return checkedValue("weeklyFrequency") === "Weekend" ? formatDateLabel(p) + " – " + formatDateLabel(addDays(p, 1)) : formatDateLabel(p);
     }
 
+    /* ---- Number steppers ---- */
     document.addEventListener("click", function (e) {
       var btn = e.target.closest(".etlw-stepper-btn");
       if (!btn) return;
-      var target = document.getElementById(btn.getAttribute("data-step-target"));
-      if (!target) return;
-      var dir = parseInt(btn.getAttribute("data-step-dir"), 10) || 0;
-      var min = parseInt(target.getAttribute("min"), 10) || 1;
-      var current = parseInt(target.value, 10) || min;
-      var next = current + dir;
-      if (next < min) next = min;
-      target.value = next;
+      var t = $(btn.getAttribute("data-step-target"));
+      if (!t) return;
+      var min = parseInt(t.getAttribute("min"), 10) || 1;
+      var next = (parseInt(t.value, 10) || min) + (parseInt(btn.getAttribute("data-step-dir"), 10) || 0);
+      t.value = next < min ? min : next;
     });
 
-    var otpInputs = Array.prototype.slice.call(document.querySelectorAll(".etlw-otp-input"));
-    var otpSubtitle = document.getElementById("etlOtpSubtitle");
-    var otpResendBtn = document.getElementById("etlOtpResendBtn");
-    var otpCountdownEl = document.getElementById("etlOtpCountdown");
-    var otpCountdownTimer = null;
-
-    function maskPhoneDisplay() {
-      var digits = document.getElementById("etlPhone").value.replace(/\D/g, "");
-      if (digits.length < 9) return "+251 9** *** ***";
-      return "+251 " + digits.charAt(0) + "** *** " + digits.slice(6, 9);
+    /* ===== CATERING HELPERS (steps 12-19) ===== */
+    var CATERING_MAX_LEAD_DAYS = 7;
+    var cateringDateInput = $("etlCateringDate");
+    function updateCateringDateLimits() {
+      var now = new Date();
+      cateringDateInput.min = toDateInputValue(now);
+      cateringDateInput.max = toDateInputValue(addDays(now, CATERING_MAX_LEAD_DAYS));
+    }
+    function prepareCateringSessionStep() {
+      var period = checkedValue("dayPeriod");
+      $("etlCateringSessionTitle").textContent = "Which " + period.toLowerCase() + " session do you need?";
+      qa("#etlCateringSessionList .etlw-option-card[data-period]").forEach(function (card) {
+        var show = card.getAttribute("data-period") === period;
+        card.hidden = !show;
+        if (!show) card.querySelector("input").checked = false;
+      });
+    }
+    qa('input[name="dayPeriod"]').forEach(function (r) {
+      r.addEventListener("change", function () {
+        qa('input[name="sessionType"]').forEach(function (o) { o.checked = false; });
+      });
+    });
+    function applyCateringWording(isCatering) {
+      $("etlLocationTitle").textContent = isCatering ? "Where is the event?" : "Where in Addis do you live?";
+      if (taskField) taskField.placeholder = isCatering ? "Venue access, serving equipment, allergies, dates for a multi-day event, or any special requests..." : "Allergies, pets, access instructions, or any special requests...";
+    }
+    function bad(msg, el) { showFormError(msg, el); return false; }
+    function validateCateringStep(step) {
+      if (step === 12) {
+        if (!cateringDateInput.value) return bad("Please pick a date.", cateringDateInput);
+        if (cateringDateInput.value < cateringDateInput.min || cateringDateInput.value > cateringDateInput.max) return bad("Please pick a date within the next 7 days.", cateringDateInput);
+      }
+      if (step === 13 && !radioGroupChecked("dayPeriod")) return bad("Please choose the suitable time for your catering service.", $("etlCateringPeriodList"));
+      if (step === 14 && !radioGroupChecked("sessionType")) return bad("Please choose one session.", $("etlCateringSessionList"));
+      if (step === 15 && !(parseInt($("etlCateringGuests").value, 10) >= 1)) return bad("Enter at least 1 person.", $("etlCateringGuests"));
+      if (step === 16 && !checkboxGroupChecked("cateringMenuSelection")) return bad("Please select at least one option.", $("etlCateringIncludesGroup"));
+      if (step === 17 && !checkboxGroupChecked("cuisineType")) return bad("Please select at least one menu type.", $("etlCateringMenuTypeGroup"));
+      if (step === 18 && !$("etlCateringMenu").value.trim()) return bad("Please tell us what you have in mind for the menu.", $("etlCateringMenu"));
+      if (step === 19 && !(parseFloat($("etlCateringBudget").value) > 0)) return bad("Enter a budget per person greater than 0.", $("etlCateringBudget"));
+      return true;
+    }
+    function addCateringFields(p) {
+      var period = checkedValue("dayPeriod");
+      delete p.weeklyFrequency;
+      delete p.dailyServiceDuration;
+      delete p.preferredDays;
+      delete p.preferredServiceDate;
+      p.serviceDate = cateringDateInput.value;
+      p.sessionPeriod = period;
+      p.sessionType = [period === "Full Day" ? "Full Day" : checkedValue("sessionType")];
+      p.numberOfPeople = Number($("etlCateringGuests").value);
+      p.cateringMenuSelection = checkedValues("cateringMenuSelection");
+      p.cuisineType = checkedValues("cuisineType");
+      p.employerBudget = Number($("etlCateringBudget").value);
+      p.notes = p.taskDetails;
+      p.taskDetails = $("etlCateringMenu").value.trim();
     }
 
+    /* ===== PREFERENCES HELPERS (step 20) ===== */
+    var PREFERENCES_META = {
+      cooking: { title: "What are 3–5 dishes you'd love your Etalem cook to be great at?", placeholder: "e.g. Doro Wat, Shiro, Pasta with Red Sauce, Pancakes, Grilled Chicken" },
+      cleaning: { title: "What should your Etalem cleaner focus on, and is there anything they should avoid or know about?", placeholder: "e.g. deep clean the kitchen and bathrooms, do laundry and ironing, avoid strong-smelling products, we have pets" },
+      nanny: { title: "What should your Etalem nanny help with day-to-day?", placeholder: "e.g. diaper changing, meal prep, homework help, nap schedule, no screen time before dinner" },
+    };
+    function applyPreferencesCopy(service) {
+      var meta = PREFERENCES_META[service], f = $("etlPreferences");
+      f.value = "";
+      $("etlPreferencesCount").textContent = "0/" + (parseInt(f.getAttribute("maxlength"), 10) || 500) + " characters used";
+      if (!meta) return;
+      $("etlPreferencesTitle").textContent = meta.title;
+      f.placeholder = meta.placeholder;
+    }
+
+    /* ---- OTP step UI ---- */
+    var otpInputs = Array.prototype.slice.call(qa(".etlw-otp-input"));
+    var otpSubtitle = $("etlOtpSubtitle"), otpResendBtn = $("etlOtpResendBtn"), otpCountdownEl = $("etlOtpCountdown"), otpCountdownTimer = null;
+
+    function maskPhoneDisplay() {
+      var d = $("etlPhone").value.replace(/\D/g, "");
+      return d.length < 9 ? "+251 9** *** ***" : "+251 " + d.charAt(0) + "** *** " + d.slice(6, 9);
+    }
     function updateOtpSubtitle() {
       if (otpSubtitle) otpSubtitle.textContent = "We sent a 6-digit code to " + maskPhoneDisplay() + ".";
     }
-
     function resetOtpInputs() {
-      otpInputs.forEach(function (input) {
-        input.value = "";
-        input.classList.remove("etl-otp-filled");
-      });
+      otpInputs.forEach(function (i) { i.value = ""; i.classList.remove("etl-otp-filled"); });
     }
-
     function getOtpValue() {
-      return otpInputs
-        .map(function (input) {
-          return input.value;
-        })
-        .join("");
+      return otpInputs.map(function (i) { return i.value; }).join("");
     }
-
     function setOtpBackDisabled(disabled) {
-      var backBtn = document.querySelector('.etlw-step[data-step="11"] .etlw-back-inline');
-      if (!backBtn) return;
-      backBtn.disabled = disabled;
-      backBtn.style.opacity = disabled ? "0.4" : "";
-      backBtn.style.pointerEvents = disabled ? "none" : "";
-      backBtn.style.cursor = disabled ? "not-allowed" : "";
+      var b = document.querySelector('.etlw-step[data-step="11"] .etlw-back-inline');
+      if (!b) return;
+      b.disabled = disabled;
+      b.style.opacity = disabled ? "0.4" : "";
+      b.style.pointerEvents = disabled ? "none" : "";
+      b.style.cursor = disabled ? "not-allowed" : "";
     }
-
-    function startOtpCountdown(durationSeconds) {
-      var seconds = durationSeconds || 60;
+    function formatMinutesSeconds(t) {
+      var s = Math.max(0, Math.round(t));
+      return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+    }
+    function startOtpCountdown(duration) {
+      var seconds = duration || 60;
       if (otpCountdownTimer) clearInterval(otpCountdownTimer);
       if (otpResendBtn) {
         otpResendBtn.disabled = true;
         otpResendBtn.innerHTML = 'Resend in <span id="etlOtpCountdown">' + formatMinutesSeconds(seconds) + "</span>";
-        otpCountdownEl = document.getElementById("etlOtpCountdown");
+        otpCountdownEl = $("etlOtpCountdown");
       }
       setOtpBackDisabled(true);
-      function render() {
-        if (otpCountdownEl) otpCountdownEl.textContent = formatMinutesSeconds(seconds);
-      }
-      render();
       otpCountdownTimer = setInterval(function () {
         seconds -= 1;
         if (seconds <= 0) {
           clearInterval(otpCountdownTimer);
           otpCountdownTimer = null;
-          if (otpResendBtn) {
-            otpResendBtn.disabled = false;
-            otpResendBtn.textContent = "Resend code";
-          }
+          if (otpResendBtn) { otpResendBtn.disabled = false; otpResendBtn.textContent = "Resend code"; }
           setOtpBackDisabled(false);
           return;
         }
-        render();
+        if (otpCountdownEl) otpCountdownEl.textContent = formatMinutesSeconds(seconds);
       }, 1000);
     }
-
-    function formatMinutesSeconds(totalSeconds) {
-      var s = Math.max(0, Math.round(totalSeconds));
-      var m = Math.floor(s / 60)
-        .toString()
-        .padStart(2, "0");
-      var r = (s % 60).toString().padStart(2, "0");
-      return m + ":" + r;
-    }
-
     function isOtpFailure(res) {
       if (!res || !res.ok) return true;
-      var data = res.data;
-      if (!data) return false;
-      if (data.reason) return true;
-      if (data.success === false) return true;
-      if (data.verified === false) return true;
-      return false;
+      var d = res.data;
+      return !!(d && (d.reason || d.success === false || d.verified === false));
     }
-
     function sendOtpRequest() {
-      var phone = "+251" + document.getElementById("etlPhone").value.trim();
-      return window.OTPService.sendOtp(phone).then(function (res) {
+      return window.OTPService.sendOtp("+251" + $("etlPhone").value.trim()).then(function (res) {
         if (isOtpFailure(res)) {
-          var message = window.OTPService.describeSendError(res);
-          var err = new Error(message);
+          var err = new Error(window.OTPService.describeSendError(res));
           err.retryAfterSeconds = res && res.data && res.data.retryAfterSeconds;
           throw err;
         }
         return res;
       });
     }
-
     otpInputs.forEach(function (input, idx) {
       input.addEventListener("input", function () {
         input.value = input.value.replace(/\D/g, "").slice(0, 1);
@@ -701,94 +618,80 @@
         var pasted = (e.clipboardData || window.clipboardData).getData("text").replace(/\D/g, "");
         if (!pasted) return;
         e.preventDefault();
-        pasted
-          .split("")
-          .slice(0, otpInputs.length)
-          .forEach(function (digit, i) {
-            if (otpInputs[i]) {
-              otpInputs[i].value = digit;
-              otpInputs[i].classList.add("etl-otp-filled");
-            }
-          });
-        var lastFilled = Math.min(pasted.length, otpInputs.length) - 1;
-        if (otpInputs[lastFilled]) otpInputs[lastFilled].focus();
+        pasted.split("").slice(0, otpInputs.length).forEach(function (digit, i) {
+          if (otpInputs[i]) { otpInputs[i].value = digit; otpInputs[i].classList.add("etl-otp-filled"); }
+        });
+        var last = Math.min(pasted.length, otpInputs.length) - 1;
+        if (otpInputs[last]) otpInputs[last].focus();
         updateContinueState(stepEls[currentStep]);
       });
     });
 
-    var DEFAULT_SEQUENCE = [1, 11, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-    var CATERING_SEQUENCE = [1, 11, 2, 3, 6, 7, 8, 9, 10];
+    /* ===== WIZARD ENGINE ===== */
+    var DEFAULT_SEQUENCE = [1, 11, 2, 3, 4, 20, 5, 6, 7, 8, 9, 10];
+    var CATERING_SEQUENCE = [1, 11, 2, 3, 12, 13, 14, 15, 16, 17, 18, 19, 7, 8, 9, 10];
+    var CATERING_SESSION_STEP = 14;
 
-    var currentStep = 1;
-    var stepEls = {};
-    document.querySelectorAll(".etlw-step").forEach(function (el) {
+    var currentStep = 1, stepEls = {};
+    qa(".etlw-step").forEach(function (el) {
       stepEls[parseInt(el.getAttribute("data-step"), 10)] = el;
     });
-    var backChevron = document.getElementById("etlBackChevron");
-    var progressLabel = document.getElementById("etlProgressLabel");
-    var progressFill = document.getElementById("etlProgressFill");
+    var backChevron = $("etlBackChevron"), progressLabel = $("etlProgressLabel"), progressFill = $("etlProgressFill");
 
     function getSequence() {
-      return getSelectedService() === "catering" ? CATERING_SEQUENCE : DEFAULT_SEQUENCE;
+      if (getSelectedService() !== "catering") return DEFAULT_SEQUENCE;
+      if (checkedValue("dayPeriod") === "Full Day")
+        return CATERING_SEQUENCE.filter(function (s) { return s !== CATERING_SESSION_STEP; });
+      return CATERING_SEQUENCE;
     }
-
     function renderStep() {
       Object.keys(stepEls).forEach(function (key) {
         var num = parseInt(key, 10);
         stepEls[key].classList.toggle("etlw-step-active", num === currentStep);
         var actions = stepEls[key].querySelector(".etlw-step-actions");
         if (actions) {
-          var backBtn = actions.querySelector(".etlw-back-inline");
-          if (backBtn) backBtn.style.display = num === 1 ? "none" : "";
+          var b = actions.querySelector(".etlw-back-inline");
+          if (b) b.style.display = num === 1 ? "none" : "";
         }
       });
-      var seq = getSequence();
-      var idx = seq.indexOf(currentStep);
+      var seq = getSequence(), idx = seq.indexOf(currentStep);
       if (idx === -1) idx = 0;
-      var total = seq.length;
-      if (progressLabel) progressLabel.textContent = "Step " + (idx + 1) + " of " + total;
-      if (progressFill) progressFill.style.width = ((idx + 1) / total) * 100 + "%";
+      if (progressLabel) progressLabel.textContent = "Step " + (idx + 1) + " of " + seq.length;
+      if (progressFill) progressFill.style.width = ((idx + 1) / seq.length) * 100 + "%";
       if (backChevron) backChevron.style.display = "none";
       if (currentStep === 11) updateOtpSubtitle();
       hideFormError();
       updateContinueState(stepEls[currentStep]);
     }
-
     function goToStep(step) {
       currentStep = step;
+      if (step === CATERING_SESSION_STEP) prepareCateringSessionStep();
       renderStep();
       if (formWrap) formWrap.scrollTop = 0;
     }
-
     function goNext() {
       if (!validateStep(stepEls[currentStep])) return;
-      var seq = getSequence();
-      var idx = seq.indexOf(currentStep);
+      var seq = getSequence(), idx = seq.indexOf(currentStep);
       if (idx === -1 || idx === seq.length - 1) return;
       goToStep(seq[idx + 1]);
     }
-
     function goBack() {
-      var seq = getSequence();
-      var idx = seq.indexOf(currentStep);
-      if (idx <= 0) return;
-      goToStep(seq[idx - 1]);
+      var seq = getSequence(), idx = seq.indexOf(currentStep);
+      if (idx > 0) goToStep(seq[idx - 1]);
     }
-
     if (backChevron) backChevron.addEventListener("click", goBack);
 
-    function setButtonLoading(btn, isLoading, loadingText) {
+    function setButtonLoading(btn, on, text) {
       if (!btn) return;
-      if (isLoading) {
+      if (on) {
         if (btn.dataset.originalText === undefined) btn.dataset.originalText = btn.textContent;
-        btn.textContent = loadingText;
+        btn.textContent = text;
         btn.disabled = true;
       } else {
         if (btn.dataset.originalText !== undefined) btn.textContent = btn.dataset.originalText;
         btn.disabled = false;
       }
     }
-
     function handleStep1Continue(btn) {
       if (!validateStep(stepEls[1])) return;
       hideFormError();
@@ -799,240 +702,146 @@
           resetOtpInputs();
           startOtpCountdown();
           var seq = getSequence();
-          var idx = seq.indexOf(1);
-          goToStep(seq[idx + 1]);
+          goToStep(seq[seq.indexOf(1) + 1]);
         })
         .catch(function (err) {
           setButtonLoading(btn, false);
-          showFormError(err.message, document.getElementById("etlPhone"));
+          showFormError(err.message, $("etlPhone"));
           if (err.retryAfterSeconds) startOtpCountdown(err.retryAfterSeconds);
         });
     }
-
     function handleOtpVerify(btn) {
       if (!validateStep(stepEls[11])) return;
-      var phone = "+251" + document.getElementById("etlPhone").value.trim();
-      var code = getOtpValue();
       hideFormError();
       setButtonLoading(btn, true, "Verifying...");
-      window.OTPService.verifyOtp(phone, code)
+      window.OTPService.verifyOtp("+251" + $("etlPhone").value.trim(), getOtpValue())
         .then(function (res) {
           setButtonLoading(btn, false);
           if (isOtpFailure(res)) {
-            showFormError(window.OTPService.describeVerifyError(res), document.getElementById("etlOtpRow"));
+            showFormError(window.OTPService.describeVerifyError(res), $("etlOtpRow"));
             resetOtpInputs();
             if (otpInputs[0]) otpInputs[0].focus();
             updateContinueState(stepEls[11]);
-            if (res && res.data && res.data.reason === "locked_out" && res.data.retryAfterSeconds) {
-              startOtpCountdown(res.data.retryAfterSeconds);
-            }
+            if (res && res.data && res.data.reason === "locked_out" && res.data.retryAfterSeconds) startOtpCountdown(res.data.retryAfterSeconds);
             return;
           }
           var seq = getSequence();
-          var idx = seq.indexOf(11);
-          goToStep(seq[idx + 1]);
+          goToStep(seq[seq.indexOf(11) + 1]);
         })
         .catch(function () {
           setButtonLoading(btn, false);
-          showFormError("Something went wrong verifying the code. Please try again.", document.getElementById("etlOtpRow"));
+          showFormError("Something went wrong verifying the code. Please try again.", $("etlOtpRow"));
         });
     }
-
     document.addEventListener("click", function (e) {
-      var inlineBack = e.target.closest(".etlw-back-inline");
-      if (inlineBack) {
-        goBack();
-        return;
-      }
-      var nextBtn = e.target.closest("[data-next]");
-      if (nextBtn && form.contains(nextBtn)) {
-        if (currentStep === 1) handleStep1Continue(nextBtn);
-        else if (currentStep === 11) handleOtpVerify(nextBtn);
+      if (e.target.closest(".etlw-back-inline")) { goBack(); return; }
+      var nb = e.target.closest("[data-next]");
+      if (nb && form.contains(nb)) {
+        if (currentStep === 1) handleStep1Continue(nb);
+        else if (currentStep === 11) handleOtpVerify(nb);
         else goNext();
       }
     });
-
     function ensureInlineBackButtons() {
-      document.querySelectorAll(".etlw-step").forEach(function (step) {
+      qa(".etlw-step").forEach(function (step) {
         var btn = step.querySelector("[data-next]");
         if (!btn || step.querySelector(".etlw-step-actions")) return;
         var actions = document.createElement("div");
         actions.className = "etlw-step-actions";
-        var backBtn = document.createElement("button");
-        backBtn.type = "button";
-        backBtn.className = "etlw-back etlw-back-inline";
-        backBtn.setAttribute("aria-label", "Go back");
-        backBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6" /></svg>';
+        var back = document.createElement("button");
+        back.type = "button";
+        back.className = "etlw-back etlw-back-inline";
+        back.setAttribute("aria-label", "Go back");
+        back.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6" /></svg>';
         step.insertBefore(actions, btn);
-        actions.appendChild(backBtn);
+        actions.appendChild(back);
         actions.appendChild(btn);
-        backBtn.style.display = "none";
+        back.style.display = "none";
       });
     }
-
     ensureInlineBackButtons();
 
+    /* ---- Validation ---- */
     function showFormError(message, target) {
       hideFormError();
-      var targetEl = target && target.closest ? target.closest(".etl-form-group, .etlw-option-list, .etlw-service-cards, .etlw-segmented, .etl-conditional-section, .etlw-otp-row") : target;
+      var host = target && target.closest ? target.closest(".etl-form-group, .etlw-option-list, .etlw-service-cards, .etlw-segmented, .etl-conditional-section, .etlw-otp-row") : target;
       if (target && target.classList) target.classList.add("etl-input-error");
-      if (targetEl && targetEl.classList) targetEl.classList.add("etl-has-error");
-      if (targetEl) {
-        var errorNode = document.createElement("div");
-        errorNode.className = "etl-field-error";
-        errorNode.textContent = message;
-        targetEl.appendChild(errorNode);
-        if (targetEl.scrollIntoView) targetEl.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
-      if (!targetEl && formError) {
+      if (host && host.classList) host.classList.add("etl-has-error");
+      if (host) {
+        var n = document.createElement("div");
+        n.className = "etl-field-error";
+        n.textContent = message;
+        host.appendChild(n);
+        if (host.scrollIntoView) host.scrollIntoView({ behavior: "smooth", block: "center" });
+      } else if (formError) {
         formError.textContent = message;
         formError.style.display = "block";
       }
     }
-
     function hideFormError() {
-      if (formError) {
-        formError.style.display = "none";
-        formError.textContent = "";
-      }
-      document.querySelectorAll(".etl-field-error").forEach(function (el) {
-        el.remove();
-      });
-      document.querySelectorAll(".etl-input-error").forEach(function (el) {
-        el.classList.remove("etl-input-error");
-      });
-      document.querySelectorAll(".etl-has-error").forEach(function (el) {
-        el.classList.remove("etl-has-error");
-      });
+      if (formError) { formError.style.display = "none"; formError.textContent = ""; }
+      qa(".etl-field-error").forEach(function (el) { el.remove(); });
+      qa(".etl-input-error").forEach(function (el) { el.classList.remove("etl-input-error"); });
+      qa(".etl-has-error").forEach(function (el) { el.classList.remove("etl-has-error"); });
     }
-
-    function radioGroupChecked(name, scopeEl) {
-      var scope = scopeEl || document;
-      return !!scope.querySelector('input[name="' + name + '"]:checked');
+    function radioGroupChecked(name, scope) {
+      return !!(scope || document).querySelector('input[name="' + name + '"]:checked');
     }
-    function checkboxGroupChecked(name, scopeEl) {
-      var scope = scopeEl || document;
-      return scope.querySelectorAll('input[name="' + name + '"]:checked').length > 0;
+    function checkboxGroupChecked(name, scope) {
+      return (scope || document).querySelectorAll('input[name="' + name + '"]:checked').length > 0;
+    }
+    function stepList(n) {
+      return document.querySelector('.etlw-step[data-step="' + n + '"] .etlw-option-list');
     }
 
     function validateStep(stepEl) {
       if (!stepEl) return true;
       var step = parseInt(stepEl.getAttribute("data-step"), 10);
-
+      if (step >= 12 && step <= 19) return validateCateringStep(step);
+      if (step === 20) {
+        var prefs = $("etlPreferences");
+        return prefs.value.trim() ? true : bad("Please tell us your preferences so we can match you with the right Etalem.", prefs);
+      }
       if (step === 1) {
-        var name = document.getElementById("etlName");
-        var phone = document.getElementById("etlPhone");
-        var consent = document.getElementById("etlPrivacyConsent");
-        if (!name.checkValidity()) {
-          showFormError("Please enter your full name.", name);
-          return false;
-        }
-        if (!phone.checkValidity()) {
-          showFormError("Enter a valid Ethiopian mobile number: 9 digits starting with 9 or 7.", phone);
-          return false;
-        }
-        if (!consent.checked) {
-          showFormError("Please agree to the Privacy Policy to continue.", consent.closest(".etlw-consent-row"));
-          return false;
-        }
+        var name = $("etlName"), phone = $("etlPhone"), consent = $("etlPrivacyConsent");
+        if (!name.checkValidity()) return bad("Please enter your full name.", name);
+        if (!phone.checkValidity()) return bad("Enter a valid Ethiopian mobile number: 9 digits starting with 9 or 7.", phone);
+        if (!consent.checked) return bad("Please agree to the Privacy Policy to continue.", consent.closest(".etlw-consent-row"));
         return true;
       }
-      if (step === 11) {
-        if (getOtpValue().length < 6) {
-          showFormError("Please enter the 6-digit code we sent you.", document.getElementById("etlOtpRow"));
-          return false;
-        }
-        return true;
-      }
-      if (step === 2) {
-        if (!radioGroupChecked("service")) {
-          showFormError("Please choose a service.", document.getElementById("etlServiceCards"));
-          return false;
-        }
-        return true;
-      }
-      if (step === 3) return true;
+      if (step === 11) return getOtpValue().length < 6 ? bad("Please enter the 6-digit code we sent you.", $("etlOtpRow")) : true;
+      if (step === 2) return radioGroupChecked("service") ? true : bad("Please choose a service.", $("etlServiceCards"));
       if (step === 4) {
-        var selected = getSelectedService();
-        if (selected === "cooking") {
-          if (!document.getElementById("etlNumberOfPeople").value) {
-            showFormError("Let us know how many people you usually cook for.", document.getElementById("etlNumberOfPeople"));
-            return false;
-          }
-          if (!checkboxGroupChecked("cuisinePreference", branchSections.cooking)) {
-            showFormError("Please select at least one cuisine preference.", document.getElementById("etlCuisineGroup"));
-            return false;
-          }
-        } else if (selected === "cleaning") {
-          if (!document.getElementById("etlNumberOfRooms").value) {
-            showFormError("Let us know how many rooms need cleaning.", document.getElementById("etlNumberOfRooms"));
-            return false;
-          }
-          if (!radioGroupChecked("houseType", branchSections.cleaning)) {
-            showFormError("Please select your home type.", document.getElementById("etlHouseTypeGroup"));
-            return false;
-          }
-          if (apartmentSizeSelect.required && !apartmentSizeSelect.value) {
-            showFormError("Please select your apartment size.", apartmentSizeSelect);
-            return false;
-          }
-        } else if (selected === "nanny") {
-          if (!document.getElementById("etlNumberOfChildren").value) {
-            showFormError("Let us know how many children need care.", document.getElementById("etlNumberOfChildren"));
-            return false;
-          }
-          if (!radioGroupChecked("childAge", branchSections.nanny)) {
-            showFormError("Please select your child's age group.", document.getElementById("etlChildAgeGroup"));
-            return false;
-          }
+        var sel = getSelectedService();
+        if (sel === "cooking") {
+          if (!$("etlNumberOfPeople").value) return bad("Let us know how many people you usually cook for.", $("etlNumberOfPeople"));
+          if (!checkboxGroupChecked("cuisinePreference", branchSections.cooking)) return bad("Please select at least one cuisine preference.", $("etlCuisineGroup"));
+        } else if (sel === "cleaning") {
+          if (!$("etlNumberOfRooms").value) return bad("Let us know how many rooms need cleaning.", $("etlNumberOfRooms"));
+          if (!radioGroupChecked("houseType", branchSections.cleaning)) return bad("Please select your home type.", $("etlHouseTypeGroup"));
+          if (apartmentSizeSelect.required && !apartmentSizeSelect.value) return bad("Please select your apartment size.", apartmentSizeSelect);
+        } else if (sel === "nanny") {
+          if (!$("etlNumberOfChildren").value) return bad("Let us know how many children need care.", $("etlNumberOfChildren"));
+          if (!radioGroupChecked("childAge", branchSections.nanny)) return bad("Please select your child's age group.", $("etlChildAgeGroup"));
         }
         return true;
       }
-      if (step === 5) {
-        if (!radioGroupChecked("weeklyFrequency")) {
-          showFormError("Please select how often you'd like your Etalem to come.", document.querySelector('.etlw-step[data-step="5"] .etlw-option-list'));
-          return false;
-        }
-        return true;
-      }
+      if (step === 5) return radioGroupChecked("weeklyFrequency") ? true : bad("Please select how often you'd like your Etalem to come.", stepList(5));
       if (step === 6) {
-        if (!radioGroupChecked("dailyServiceDuration")) {
-          showFormError("Please select a time of day.", document.querySelector('.etlw-step[data-step="6"] .etlw-option-list'));
-          return false;
-        }
-        if (!isPreferredDateValid()) {
-          showFormError(checkedValue("weeklyFrequency") === "Weekend" ? "Please select a Saturday for your weekend service." : "Please select a valid service date.", document.getElementById("etlServiceDate"));
-          return false;
-        }
-        var requiredWeekdays = requiredWeekdayCount(checkedValue("weeklyFrequency"));
-        if (requiredWeekdays !== null && checkedValues("preferredWeekday").length !== requiredWeekdays) {
-          showFormError("Please select " + requiredWeekdays + " preferred day(s).", document.getElementById("etlPreferredWeekdaysGroup"));
-          return false;
-        }
+        if (!radioGroupChecked("dailyServiceDuration")) return bad("Please select a time of day.", stepList(6));
+        if (!isPreferredDateValid()) return bad(checkedValue("weeklyFrequency") === "Weekend" ? "Please select a Saturday for your weekend service." : "Please select a valid service date.", $("etlServiceDate"));
+        var rw = requiredWeekdayCount(checkedValue("weeklyFrequency"));
+        if (rw !== null && checkedValues("preferredWeekday").length !== rw) return bad("Please select " + rw + " preferred day(s).", $("etlPreferredWeekdaysGroup"));
         return true;
       }
       if (step === 7) {
-        var location = document.getElementById("etlLocation");
-        if (!location.checkValidity()) {
-          showFormError("Please enter your area.", location);
-          return false;
-        }
+        var loc = $("etlLocation");
+        if (!loc.value.trim()) return bad("Please enter your area.", loc);
+        if (!$("etlLandmark").value.trim()) return bad("Please enter a nearby landmark.", $("etlLandmark"));
         return true;
       }
-      if (step === 8) {
-        if (!radioGroupChecked("marketingChannel")) {
-          showFormError("Please let us know how you found Etalem.", document.querySelector('.etlw-step[data-step="8"] .etlw-option-list'));
-          return false;
-        }
-        return true;
-      }
-      if (step === 9) {
-        if (!radioGroupChecked("preferredCommunicationChannel")) {
-          showFormError("Please select how you'd like us to reach you.", document.querySelector('.etlw-step[data-step="9"] .etlw-option-list'));
-          return false;
-        }
-        return true;
-      }
+      if (step === 8) return radioGroupChecked("marketingChannel") ? true : bad("Please let us know how you found Etalem.", stepList(8));
+      if (step === 9) return radioGroupChecked("preferredCommunicationChannel") ? true : bad("Please select how you'd like us to reach you.", stepList(9));
       return true;
     }
 
@@ -1040,153 +849,123 @@
       if (!stepEl) return;
       var btn = stepEl.querySelector("[data-next]");
       if (!btn) return;
-      var step = parseInt(stepEl.getAttribute("data-step"), 10);
-      var ok = true;
+      var step = parseInt(stepEl.getAttribute("data-step"), 10), ok = true;
       if (step === 1) {
-        var consentBox = document.getElementById("etlPrivacyConsent");
-        ok = !!(document.getElementById("etlName").value.trim() && document.getElementById("etlPhone").value.trim() && consentBox && consentBox.checked);
-      } else if (step === 11) {
-        ok = getOtpValue().length === 6;
-      } else if (step === 2) {
-        ok = radioGroupChecked("service");
-      } else if (step === 5) {
-        ok = radioGroupChecked("weeklyFrequency");
-      } else if (step === 6) {
-        ok = radioGroupChecked("dailyServiceDuration") && isPreferredScheduleValid();
-      } else if (step === 7) {
-        ok = !!document.getElementById("etlLocation").value.trim();
-      } else if (step === 8) {
-        ok = radioGroupChecked("marketingChannel");
-      } else if (step === 9) {
-        ok = radioGroupChecked("preferredCommunicationChannel");
-      }
+        var c = $("etlPrivacyConsent");
+        ok = !!($("etlName").value.trim() && $("etlPhone").value.trim() && c && c.checked);
+      } else if (step === 11) ok = getOtpValue().length === 6;
+      else if (step === 2) ok = radioGroupChecked("service");
+      else if (step === 5) ok = radioGroupChecked("weeklyFrequency");
+      else if (step === 6) ok = radioGroupChecked("dailyServiceDuration") && isPreferredScheduleValid();
+      else if (step === 7) ok = !!($("etlLocation").value.trim() && $("etlLandmark").value.trim());
+      else if (step === 8) ok = radioGroupChecked("marketingChannel");
+      else if (step === 9) ok = radioGroupChecked("preferredCommunicationChannel");
       if (btn.dataset.originalText !== undefined) return;
       btn.disabled = !ok;
     }
+    form.addEventListener("input", function () { updateContinueState(stepEls[currentStep]); });
+    form.addEventListener("change", function () { updateContinueState(stepEls[currentStep]); });
 
-    form.addEventListener("input", function (e) {
-      updateContinueState(stepEls[currentStep]);
-    });
-    form.addEventListener("change", function (e) {
-      updateContinueState(stepEls[currentStep]);
-    });
-
+    /* ---- Modal open / close / reset ---- */
     function resetWizard() {
       form.reset();
-      Object.keys(branchSections).forEach(function (key) {
-        clearSectionFields(branchSections[key]);
-        branchSections[key].style.display = "none";
+      Object.keys(branchSections).forEach(function (k) {
+        clearSectionFields(branchSections[k]);
+        branchSections[k].style.display = "none";
       });
       if (charCount) charCount.textContent = "0/" + maxLength + " characters used";
+      var mc = $("etlCateringMenuCount");
+      if (mc) mc.textContent = "0/500 characters used";
       resetOtpInputs();
-      if (otpCountdownTimer) {
-        clearInterval(otpCountdownTimer);
-        otpCountdownTimer = null;
-      }
+      if (otpCountdownTimer) { clearInterval(otpCountdownTimer); otpCountdownTimer = null; }
       if (otpResendBtn) {
         otpResendBtn.disabled = true;
         otpResendBtn.innerHTML = 'Resend in <span id="etlOtpCountdown">01:00</span>';
-        otpCountdownEl = document.getElementById("etlOtpCountdown");
+        otpCountdownEl = $("etlOtpCountdown");
       }
       setOtpBackDisabled(false);
       currentStep = 1;
       goToStep(1);
     }
-
     function resetModalView() {
       if (formWrap) formWrap.style.display = "";
       if (formSuccess) formSuccess.style.display = "none";
       hideFormError();
     }
-
     function closeModal() {
       modal.classList.remove("etl-open");
       document.body.style.overflow = "";
     }
-
     document.addEventListener("click", function (e) {
       var trigger = e.target.closest('a[href="#request"]');
       if (trigger) {
         e.preventDefault();
-        if (modal.classList.contains("etl-open")) {
-          closeModal();
-        } else {
-          resetModalView();
-          resetWizard();
-          var preselect = trigger.getAttribute("data-link");
-          if (preselect) {
-            var radio = document.querySelector('input[name="service"][value="' + preselect + '"]');
-            if (radio) {
-              radio.checked = true;
-              updateServiceDependentUI();
-            }
-          }
-          modal.classList.add("etl-open");
-          document.body.style.overflow = "hidden";
+        if (modal.classList.contains("etl-open")) { closeModal(); return; }
+        resetModalView();
+        resetWizard();
+        var pre = trigger.getAttribute("data-link");
+        if (pre) {
+          var radio = document.querySelector('input[name="service"][value="' + pre + '"]');
+          if (radio) { radio.checked = true; updateServiceDependentUI(); }
         }
+        modal.classList.add("etl-open");
+        document.body.style.overflow = "hidden";
         return;
       }
       if (e.target.closest(".etl-request-close")) closeModal();
     });
 
-    function checkedValues(name) {
-      return Array.prototype.map.call(document.querySelectorAll('input[name="' + name + '"]:checked'), function (el) {
-        return el.value;
-      });
-    }
-    function checkedValue(name) {
-      var el = document.querySelector('input[name="' + name + '"]:checked');
-      return el ? el.value : "";
-    }
-
+    /* ---- Submit ---- */
     function buildPayload() {
-      var selectedService = getSelectedService();
-      var payload = {
+      var svc = getSelectedService();
+      var p = {
         sourcePage: "service-guide",
-        service: selectedService,
-        fullName: document.getElementById("etlName").value.trim(),
-        phone: "+251" + document.getElementById("etlPhone").value.trim(),
+        service: svc,
+        fullName: $("etlName").value.trim(),
+        phone: "+251" + $("etlPhone").value.trim(),
         weeklyFrequency: checkedValue("weeklyFrequency"),
         dailyServiceDuration: checkedValue("dailyServiceDuration"),
         preferredDays: buildWorkDays(),
         preferredServiceDate: buildPreferredServiceDateLabel(),
         serviceDate: serviceDateInput && serviceDateInput.value ? serviceDateInput.value : "",
-        location: document.getElementById("etlLocation").value.trim(),
-        landmark: document.getElementById("etlLandmark").value.trim(),
+        location: $("etlLocation").value.trim(),
+        landmark: $("etlLandmark").value.trim(),
         marketingChannel: checkedValue("marketingChannel"),
         preferredCommunicationChannel: checkedValue("preferredCommunicationChannel"),
-        taskDetails: document.getElementById("etlTask").value.trim(),
+        taskDetails: $("etlTask").value.trim(),
       };
-
-      if (selectedService === "cooking") {
-        var people = document.getElementById("etlNumberOfPeople").value;
-        payload.numberOfPeople = people === "" ? undefined : Number(people);
-        payload.cuisinePreference = checkedValues("cuisinePreference");
-      } else if (selectedService === "cleaning") {
-        var houseType = checkedValue("houseType");
-        var rooms = document.getElementById("etlNumberOfRooms").value;
-        payload.numberOfRooms = rooms === "" ? undefined : Number(rooms);
-        payload.houseType = houseType;
-        if (String(houseType).toLowerCase() === "apartment") payload.apartmentSize = apartmentSizeSelect.value;
-        payload.extraCleaningServices = checkedValues("extraCleaningServices");
-      } else if (selectedService === "nanny") {
-        var childCount = document.getElementById("etlNumberOfChildren").value;
-        payload.numberOfChildren = childCount === "" ? undefined : Number(childCount);
-        payload.childAge = checkedValue("childAge");
+      if (svc === "cooking") {
+        p.numberOfPeople = numOrUndef("etlNumberOfPeople");
+        p.cuisinePreference = checkedValues("cuisinePreference");
+      } else if (svc === "cleaning") {
+        var ht = checkedValue("houseType");
+        p.numberOfRooms = numOrUndef("etlNumberOfRooms");
+        p.houseType = ht;
+        if (String(ht).toLowerCase() === "apartment") p.apartmentSize = apartmentSizeSelect.value;
+        p.extraCleaningServices = checkedValues("extraCleaningServices");
+      } else if (svc === "nanny") {
+        p.numberOfChildren = numOrUndef("etlNumberOfChildren");
+        p.childAge = checkedValue("childAge");
+      } else if (svc === "catering") {
+        addCateringFields(p);
       }
-      return payload;
+      if (svc !== "catering") {
+        p.preferences = $("etlPreferences").value.trim();
+        var dur = document.querySelector('input[name="dailyServiceDuration"]:checked');
+        if (dur && dur.dataset.start) {
+          p.sessionStartTime = dur.dataset.start;
+          p.sessionEndTime = dur.dataset.end;
+        }
+      }
+      return p;
     }
 
     function submitRequest() {
-      if (!validateStep(stepEls[10])) return;
-      var submitBtn = document.getElementById("etlSubmitBtn");
-      var originalLabel = submitBtn.textContent;
+      var btn = $("etlSubmitBtn"), label = btn.textContent;
       hideFormError();
-      submitBtn.disabled = true;
-      submitBtn.textContent = "Sending...";
-
+      btn.disabled = true;
+      btn.textContent = "Sending...";
       var payload = buildPayload();
-
       fetch(WEBHOOK_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1194,6 +973,8 @@
       })
         .then(function (res) {
           if (!res.ok) throw new Error("Request failed with status " + res.status);
+          var msg = $("etlConfirmText");
+          if (msg) msg.textContent = payload.service === "catering" ? "Thanks! Our team will review your request and reach out shortly with a menu and pricing." : "Our team is putting together your personalized quote and will send it to you shortly.";
           if (formWrap) formWrap.style.display = "none";
           if (formSuccess) formSuccess.style.display = "block";
           resetWizard();
@@ -1202,16 +983,12 @@
           showFormError("Sorry, we could not submit your request. Please try again or call 9675.");
         })
         .finally(function () {
-          submitBtn.disabled = false;
-          submitBtn.textContent = originalLabel;
+          btn.disabled = false;
+          btn.textContent = label;
         });
     }
-
     form.addEventListener("submit", function (e) {
       e.preventDefault();
-      // Enter/mobile "Go" on an earlier step's input also fires this native submit
-      // event (etlSubmitBtn is type="submit" and shares this <form> with every
-      // step) - only treat it as a real submission once the wizard is on step 10.
       if (currentStep !== 10) return;
       submitRequest();
     });
